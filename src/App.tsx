@@ -64,8 +64,7 @@ const claimShift = (shiftId) => {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                 <h3 className="text-gray-500 text-sm">Open Shifts</h3>
-                <p className="text-3xl font-bold text-gray-800">0</p>
-              </div>
+<p className="text-3xl font-bold text-gray-800">{shifts.filter(s => s.status === 'open').length}</p>              </div>
               <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
                 <h3 className="text-gray-500 text-sm">Unread Messages</h3>
                 <p className="text-3xl font-bold text-gray-800">0</p>
