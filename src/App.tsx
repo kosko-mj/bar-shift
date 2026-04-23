@@ -1,121 +1,101 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activePage, setActivePage] = useState('dashboard')
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="flex min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <aside className="w-64 bg-white border-r border-gray-200 p-4">
+        <h1 className="text-xl font-bold text-green-700 mb-8">BarShift</h1>
+        
+        <nav className="space-y-2">
+          <button 
+            onClick={() => setActivePage('dashboard')}
+            className={`w-full text-left px-4 py-2 rounded-lg ${activePage === 'dashboard' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            Dashboard
+          </button>
+          <button 
+            onClick={() => setActivePage('shifts')}
+            className={`w-full text-left px-4 py-2 rounded-lg ${activePage === 'shifts' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            Shift Swaps
+          </button>
+          <button 
+            onClick={() => setActivePage('messages')}
+            className={`w-full text-left px-4 py-2 rounded-lg ${activePage === 'messages' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            Messages
+          </button>
+          <button 
+            onClick={() => setActivePage('profile')}
+            className={`w-full text-left px-4 py-2 rounded-lg ${activePage === 'profile' ? 'bg-green-50 text-green-700' : 'text-gray-600 hover:bg-gray-50'}`}
+          >
+            Profile
+          </button>
+        </nav>
+      </aside>
 
-      <div className="ticks"></div>
+      {/* Main content */}
+      <main className="flex-1 p-8">
+        {activePage === 'dashboard' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Dashboard</h2>
+            <p className="text-gray-600">Welcome to BarShift. Manage shifts and team communication.</p>
+            
+            {/* Stats cards placeholder */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <h3 className="text-gray-500 text-sm">Open Shifts</h3>
+                <p className="text-3xl font-bold text-gray-800">0</p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <h3 className="text-gray-500 text-sm">Unread Messages</h3>
+                <p className="text-3xl font-bold text-gray-800">0</p>
+              </div>
+              <div className="bg-white rounded-xl shadow-sm p-6 border border-gray-100">
+                <h3 className="text-gray-500 text-sm">Team Members</h3>
+                <p className="text-3xl font-bold text-gray-800">1</p>
+              </div>
+            </div>
+          </div>
+        )}
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {activePage === 'shifts' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Shift Swaps</h2>
+            <p className="text-gray-600 mb-6">Post or claim shifts from your team.</p>
+            
+            {/* Post shift button */}
+            <button className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700">
+              + Post a Shift
+            </button>
+            
+            {/* Open shifts list placeholder */}
+            <div className="mt-6 space-y-3">
+              <div className="bg-white rounded-xl shadow-sm p-4 border border-gray-100">
+                <p className="text-gray-500 text-sm">No open shifts at the moment.</p>
+              </div>
+            </div>
+          </div>
+        )}
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        {activePage === 'messages' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Messages</h2>
+            <p className="text-gray-600">Team messaging coming soon.</p>
+          </div>
+        )}
+
+        {activePage === 'profile' && (
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800 mb-4">Profile</h2>
+            <p className="text-gray-600">Your profile information.</p>
+          </div>
+        )}
+      </main>
+    </div>
   )
 }
 
