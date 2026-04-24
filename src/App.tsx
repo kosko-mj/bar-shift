@@ -4,6 +4,7 @@ function App() {
   const [activePage, setActivePage] = useState('dashboard')
   const [showPostModal, setShowPostModal] = useState(false)
   const [isDark, setIsDark] = useState(true)
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [shifts, setShifts] = useState<Array<{id: number; date: string; startTime: string; endTime: string; role: string; note: string; status: string}>>([])
   const [newShift, setNewShift] = useState({
     date: '',
@@ -27,8 +28,11 @@ function App() {
 
   return (
     <div className={`flex min-h-screen ${isDark ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
-      {/* Sidebar */}
-      <aside className={`w-64 p-4 shadow-lg border-r ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+      {/* Desktop sidebar - always visible */}
+      <aside className={`
+        hidden lg:block w-64 p-4 shadow-lg border-r
+        ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}
+      `}>
         <h1 className="text-2xl font-bold text-red-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)] tracking-wide mb-8">
           BarShift
         </h1>
@@ -77,8 +81,89 @@ function App() {
         </nav>
       </aside>
 
+      {/* Mobile sidebar - fixed overlay */}
+      {isMobileMenuOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setIsMobileMenuOpen(false)}
+        />
+      )}
+
+      <aside className={`
+        fixed top-0 left-0 bottom-0 w-64 p-4 shadow-lg z-50 transition-transform duration-300 lg:hidden
+        ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}
+        ${isDark ? 'bg-gray-900 border-r border-gray-800' : 'bg-white border-r border-gray-200'}
+      `}>
+        <h1 className="text-2xl font-bold text-red-500 drop-shadow-[0_0_8px_rgba(59,130,246,0.8)] tracking-wide mb-8">
+          BarShift
+        </h1>
+        
+        <nav className="space-y-1">
+          <button 
+            onClick={() => {
+              setActivePage('dashboard')
+              setIsMobileMenuOpen(false)
+            }}
+            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+              activePage === 'dashboard' 
+                ? isDark ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-900'
+                : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Dashboard
+          </button>
+          <button 
+            onClick={() => {
+              setActivePage('shifts')
+              setIsMobileMenuOpen(false)
+            }}
+            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+              activePage === 'shifts' 
+                ? isDark ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-900'
+                : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Shift Swaps
+          </button>
+          <button 
+            onClick={() => {
+              setActivePage('messages')
+              setIsMobileMenuOpen(false)
+            }}
+            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+              activePage === 'messages' 
+                ? isDark ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-900'
+                : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Messages
+          </button>
+          <button 
+            onClick={() => {
+              setActivePage('profile')
+              setIsMobileMenuOpen(false)
+            }}
+            className={`w-full text-left px-4 py-2 rounded-lg transition-colors ${
+              activePage === 'profile' 
+                ? isDark ? 'bg-gray-800 text-white' : 'bg-gray-200 text-gray-900'
+                : isDark ? 'text-gray-400 hover:text-white hover:bg-gray-800' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'
+            }`}
+          >
+            Profile
+          </button>
+        </nav>
+      </aside>
+
       {/* Main content */}
-      <main className="flex-1 p-8">
+      <main className="flex-1 p-4 lg:p-8">
+        {/* Mobile menu button - RemixIcon */}
+        <button 
+          onClick={() => setIsMobileMenuOpen(true)}
+          className="lg:hidden mb-4 text-3xl"
+        >
+          <i className="ri-menu-line"></i>
+        </button>
+
         {activePage === 'dashboard' && (
           <div>
             <h2 className="text-2xl font-bold mb-4">Dashboard</h2>
@@ -110,7 +195,7 @@ function App() {
               onClick={() => setShowPostModal(true)}
               className={`border px-4 py-2 rounded-lg transition-colors ${isDark ? 'border-gray-700 hover:border-gray-600' : 'border-gray-300 hover:border-gray-400'}`}
             >
-              + Post a Shift
+              Post a Shift
             </button>
             
             <div className="mt-6 space-y-3">
@@ -155,20 +240,21 @@ function App() {
             <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Your profile information.</p>
             
             <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-              <div className="flex justify-between items-center">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                 <div>
                   <h3 className="font-medium mb-1">Appearance</h3>
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Switch between dark and light mode</p>
                 </div>
                 <button 
                   onClick={toggleTheme}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
+                  className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
                     isDark 
                       ? 'bg-gray-800 hover:bg-gray-700 border border-gray-700' 
                       : 'bg-gray-200 hover:bg-gray-300 border border-gray-300'
                   }`}
                 >
-                  {isDark ? '☀️ Light Mode' : '🌙 Dark Mode'}
+                  <i className={`ri-${isDark ? 'sun-line' : 'moon-line'} text-lg`}></i>
+                  {isDark ? 'Light Mode' : 'Dark Mode'}
                 </button>
               </div>
             </div>
@@ -177,7 +263,7 @@ function App() {
 
         {/* Post Shift Modal */}
         {showPostModal && (
-          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50">
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
             <div className={`rounded-xl shadow-xl w-full max-w-md p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
               <h3 className="text-xl font-bold mb-4">Post a Shift</h3>
               
