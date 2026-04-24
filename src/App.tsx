@@ -1,11 +1,25 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import { supabase } from './lib/supabase'
+
+interface Shift {
+  id: number
+  user_id: string
+  date: string
+  start_time: string
+  end_time: string
+  role: string
+  note: string
+  status: string
+  created_at: string
+}
 
 function App() {
   const [activePage, setActivePage] = useState('dashboard')
   const [showPostModal, setShowPostModal] = useState(false)
+  const [showAuthModal, setShowAuthModal] = useState(false)
   const [isDark, setIsDark] = useState(true)
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
-  const [shifts, setShifts] = useState<Array<{id: number; date: string; startTime: string; endTime: string; role: string; note: string; status: string}>>([])
+  const [shifts, setShifts] = useState<Shift[]>([])
   const [newShift, setNewShift] = useState({
     date: '',
     startTime: '',
@@ -13,13 +27,141 @@ function App() {
     role: 'bartender',
     note: ''
   })
+  const [userId, setUserId] = useState<string | null>(null)
+  const [authEmail, setAuthEmail] = useState('')
+  const [authPassword, setAuthPassword] = useState('')
+  const [isLogin, setIsLogin] = useState(true)
+  const [authError, setAuthError] = useState('')
 
-  const claimShift = (shiftId: number) => {
-    setShifts(shifts.map(shift => 
-      shift.id === shiftId 
-        ? { ...shift, status: 'claimed' } 
-        : shift
-    ))
+  // Load shifts from Supabase
+  const loadShifts = async () => {
+    console.log('Loading shifts...')
+    const { data, error } = await supabase
+      .from('shifts')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    console.log('Data:', data)
+    console.log('Error:', error)
+    
+    if (error) {
+      console.error('Error loading shifts:', error)
+    } else {
+      setShifts(data || [])
+    }
+  }
+
+  // Auth handler
+  const handleAuth = async () => {
+    setAuthError('')
+    
+    if (isLogin) {
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword,
+      })
+      if (error) {
+        setAuthError(error.message)
+      } else {
+        setShowAuthModal(false)
+        const { data: { user } } = await supabase.auth.getUser()
+        setUserId(user?.id || null)
+        loadShifts()
+        setAuthEmail('')
+        setAuthPassword('')
+      }
+    } else {
+      const { error } = await supabase.auth.signUp({
+        email: authEmail,
+        password: authPassword,
+      })
+      if (error) {
+        setAuthError(error.message)
+      } else {
+        setAuthError('Check your email to confirm your account!')
+      }
+    }
+  }
+
+  // Logout handler
+  const handleLogout = async () => {
+    await supabase.auth.signOut()
+    setUserId(null)
+    setShifts([])
+  }
+
+  // Check auth status on page load
+  useEffect(() => {
+    const checkUser = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      console.log('Session:', session)
+      if (session?.user) {
+        setUserId(session.user.id)
+        await loadShifts()
+      } else {
+        setShowAuthModal(true)
+      }
+    }
+    checkUser()
+  }, [])
+
+  // Claim a shift
+  const claimShift = async (shiftId: number) => {
+    console.log('Claiming shift:', shiftId)
+    const { error } = await supabase
+      .from('shifts')
+      .update({ status: 'claimed' })
+      .eq('id', shiftId)
+    
+    if (error) {
+      console.error('Error claiming shift:', error)
+    } else {
+      loadShifts()
+    }
+  }
+
+  // Post a new shift
+  const postShift = async () => {
+    console.log('postShift called')
+    console.log('userId:', userId)
+    console.log('newShift:', newShift)
+
+    if (!userId) {
+      console.error('User not logged in')
+      return
+    }
+
+    const shiftToAdd = {
+      user_id: userId,
+      date: newShift.date,
+      start_time: newShift.startTime,
+      end_time: newShift.endTime,
+      role: newShift.role,
+      note: newShift.note,
+      status: 'open'
+    }
+
+    console.log('shiftToAdd:', shiftToAdd)
+
+    const { data, error } = await supabase
+      .from('shifts')
+      .insert([shiftToAdd])
+      .select()
+
+    if (error) {
+      console.error('Supabase error:', error)
+    } else {
+      console.log('Success:', data)
+      loadShifts()
+      setShowPostModal(false)
+      setNewShift({
+        date: '',
+        startTime: '',
+        endTime: '',
+        role: 'bartender',
+        note: ''
+      })
+    }
   }
 
   const toggleTheme = () => {
@@ -209,7 +351,7 @@ function App() {
                     <div className="flex justify-between items-start">
                       <div>
                         <p className="font-medium">{shift.role}</p>
-                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{shift.date} • {shift.startTime} - {shift.endTime}</p>
+                        <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{shift.date} • {shift.start_time} - {shift.end_time}</p>
                         {shift.note && <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'} mt-1`}>Note: {shift.note}</p>}
                       </div>
                       <button 
@@ -240,7 +382,7 @@ function App() {
             <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Your profile information.</p>
             
             <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                 <div>
                   <h3 className="font-medium mb-1">Appearance</h3>
                   <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Switch between dark and light mode</p>
@@ -256,6 +398,75 @@ function App() {
                   <i className={`ri-${isDark ? 'sun-line' : 'moon-line'} text-lg`}></i>
                   {isDark ? 'Light Mode' : 'Dark Mode'}
                 </button>
+              </div>
+              
+              {userId && (
+                <div className="pt-4 border-t border-gray-700">
+                  <button 
+                    onClick={handleLogout}
+                    className="px-4 py-2 rounded-lg text-red-500 hover:bg-red-500/10 transition-colors"
+                  >
+                    Logout
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Auth Modal */}
+        {showAuthModal && (
+          <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+            <div className={`rounded-xl shadow-xl w-full max-w-md p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+              <h3 className="text-xl font-bold mb-4">{isLogin ? 'Login' : 'Sign Up'}</h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Email</label>
+                  <input 
+                    type="email" 
+                    className={`w-full rounded-lg px-4 py-2 border focus:outline-none focus:border-gray-500 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`} 
+                    value={authEmail}
+                    onChange={(e) => setAuthEmail(e.target.value)}
+                  />
+                </div>
+                
+                <div>
+                  <label className={`block text-sm font-medium mb-1 ${isDark ? 'text-gray-300' : 'text-gray-700'}`}>Password</label>
+                  <input 
+                    type="password" 
+                    className={`w-full rounded-lg px-4 py-2 border focus:outline-none focus:border-gray-500 ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-300'}`} 
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                  />
+                </div>
+                
+                {authError && (
+                  <p className="text-sm text-red-500">{authError}</p>
+                )}
+              </div>
+              
+              <div className="flex justify-between items-center mt-6">
+                <button 
+                  onClick={() => setIsLogin(!isLogin)}
+                  className="text-sm text-blue-500 hover:text-blue-400"
+                >
+                  {isLogin ? 'Need an account? Sign up' : 'Already have an account? Login'}
+                </button>
+                <div className="flex gap-3">
+                  <button 
+                    onClick={() => setShowAuthModal(false)}
+                    className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'hover:bg-gray-800' : 'hover:bg-gray-100'}`}
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleAuth}
+                    className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                  >
+                    {isLogin ? 'Login' : 'Sign Up'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -332,22 +543,7 @@ function App() {
                   Cancel
                 </button>
                 <button 
-                  onClick={() => {
-                    const shiftToAdd = {
-                      id: Date.now(),
-                      ...newShift,
-                      status: 'open'
-                    }
-                    setShifts([shiftToAdd, ...shifts])
-                    setShowPostModal(false)
-                    setNewShift({
-                      date: '',
-                      startTime: '',
-                      endTime: '',
-                      role: 'bartender',
-                      note: ''
-                    })
-                  }}
+                  onClick={postShift}
                   className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
                 >
                   Post Shift
