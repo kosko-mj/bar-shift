@@ -49,7 +49,6 @@ function App() {
     { id: 5, type: 'meeting', title: 'Staff Meeting', message: 'Mandatory all-hands meeting Monday 4/28 10am', date: '2026-04-28' },
   ]
 
-  // Load user profile from Supabase
   const loadProfile = async (uid: string) => {
     const { data, error } = await supabase
       .from('profiles')
@@ -66,7 +65,6 @@ function App() {
     }
   }
 
-  // Save user profile to Supabase
   const saveProfile = async () => {
     if (!userId) return
     
@@ -239,7 +237,6 @@ function App() {
           <i className="ri-menu-line"></i>
         </button>
 
-        {/* Persistent Greeting Header */}
         <div className="mb-6">
           <h1 className="text-3xl md:text-4xl font-bold">
             Hello, {getDisplayName()}

@@ -74,7 +74,11 @@ export function PostShiftModal({
             >
               <option value="bartender">Bartender</option>
               <option value="server">Server</option>
-              <option value="kitchen">Kitchen</option>
+              <option value="host">Host</option>
+              <option value="cook">Cook</option>
+              <option value="bar back">Bar Back</option>
+              <option value="door">Door / Security</option>
+              <option value="sound">Sound Engineer</option>
               <option value="manager">Manager</option>
             </select>
           </div>
