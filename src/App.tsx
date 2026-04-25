@@ -4,6 +4,7 @@ import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './components/dashboard/Dashboard'
 import { ShiftsPage, Shift } from './components/shifts/ShiftsPage'
 import { ProfilePage } from './components/profile/ProfilePage'
+import { SchedulePage } from './components/schedule/SchedulePage'
 import { AuthModal } from './components/modals/AuthModal'
 import { PostShiftModal } from './components/modals/PostShiftModal'
 
@@ -255,6 +256,8 @@ function App() {
             alerts={alerts}
             isDark={isDark}
             openShiftsCount={shifts.filter(s => s.status === 'open').length}
+            onNavigateToMessages={() => setActivePage('messages')}
+            onNavigateToShifts={() => setActivePage('shifts')}
           />
         )}
 
@@ -265,6 +268,10 @@ function App() {
             onClaimShift={claimShift}
             onOpenPostModal={() => setShowPostModal(true)}
           />
+        )}
+
+        {activePage === 'schedule' && (
+          <SchedulePage isDark={isDark} barName={selectedBar} />
         )}
 
         {activePage === 'messages' && (

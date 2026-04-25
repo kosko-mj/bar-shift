@@ -6,6 +6,16 @@ interface Alert {
   date: string
 }
 
+interface ScheduleShift {
+  id: number
+  barName: string
+  date: string
+  role: string
+  shiftType: string
+  startTime: string
+  endTime: string
+}
+
 interface DashboardProps {
   userName: string
   authEmail: string
@@ -17,6 +27,8 @@ interface DashboardProps {
   alerts: Alert[]
   isDark: boolean
   openShiftsCount: number
+  onNavigateToMessages: () => void
+  onNavigateToShifts: () => void
 }
 
 const getAlertIcon = (type: string) => {
@@ -39,6 +51,69 @@ const getAlertColor = (type: string) => {
   }
 }
 
+const getShiftTypeColor = (shiftType: string): string => {
+  switch(shiftType) {
+    case 'open': return 'text-green-500'
+    case 'swing': return 'text-yellow-500'
+    case 'close': return 'text-red-500'
+    default: return 'text-gray-400'
+  }
+}
+
+const getRoleIcon = (role: string): string => {
+  const r = role.toLowerCase()
+  if (r === 'bartender') return 'ri-goblet-line'
+  if (r === 'server') return 'ri-goblet-2-fill'
+  if (r === 'host') return 'ri-book-open-line'
+  if (r === 'cook') return 'ri-knife-line'
+  if (r === 'bar back') return 'ri-cup-line'
+  if (r === 'door') return 'ri-id-card-line'
+  if (r === 'sound') return 'ri-headphone-line'
+  if (r === 'manager') return 'ri-user-2-line'
+  return 'ri-user-smile-line'
+}
+
+const formatTimeShort = (timeString: string): string => {
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours)
+  const ampm = hour >= 12 ? 'pm' : 'am'
+  const hour12 = hour % 12 || 12
+  const minuteStr = minutes !== '00' ? `:${minutes}` : ''
+  return `${hour12}${minuteStr}${ampm}`
+}
+
+const formatDateShort = (dateString: string): string => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'numeric', 
+    day: 'numeric' 
+  })
+}
+
+const getScheduleForBar = (barName: string): ScheduleShift[] => {
+  const allShifts: ScheduleShift[] = [
+    { id: 1, barName: 'Bonus Room', date: '2026-04-25', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
+    { id: 2, barName: 'Bonus Room', date: '2026-04-26', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
+    { id: 3, barName: 'The Local', date: '2026-04-27', role: 'bar back', shiftType: 'swing', startTime: '16:00', endTime: '22:00' },
+    { id: 4, barName: 'Bonus Room', date: '2026-04-27', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
+    { id: 5, barName: 'Bonus Room', date: '2026-04-28', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
+    { id: 6, barName: 'The Local', date: '2026-04-29', role: 'bartender', shiftType: 'swing', startTime: '18:00', endTime: '01:00' },
+  ]
+  
+  return allShifts.filter(shift => shift.barName === barName)
+}
+
+const groupShiftsByDate = (shifts: ScheduleShift[]): Map<string, ScheduleShift[]> => {
+  const grouped = new Map<string, ScheduleShift[]>()
+  shifts.forEach(shift => {
+    const existing = grouped.get(shift.date) || []
+    existing.push(shift)
+    grouped.set(shift.date, existing)
+  })
+  return grouped
+}
+
 export function Dashboard({
   selectedBar,
   setSelectedBar,
@@ -47,8 +122,13 @@ export function Dashboard({
   userBars,
   alerts,
   isDark,
-  openShiftsCount
+  openShiftsCount,
+  onNavigateToMessages,
+  onNavigateToShifts
 }: DashboardProps) {
+  const barSchedule = getScheduleForBar(selectedBar)
+  const groupedSchedule = groupShiftsByDate(barSchedule)
+
   return (
     <div>
       {/* Bar selector */}
@@ -106,32 +186,69 @@ export function Dashboard({
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3">Operations</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <i className="ri-exchange-line text-xl text-green-500"></i>
-              <h3 className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Open Shifts</h3>
-            </div>
-            <p className="text-3xl font-bold">{openShiftsCount}</p>
+      {/* Clickable Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div 
+          onClick={onNavigateToMessages}
+          className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <i className="ri-mail-line text-xl text-blue-500"></i>
+            <h3 className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Messages</h3>
           </div>
-          <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <i className="ri-mail-line text-xl text-blue-500"></i>
-              <h3 className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Unread Messages</h3>
-            </div>
-            <p className="text-3xl font-bold">0</p>
-          </div>
-          <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-            <div className="flex items-center gap-2 mb-2">
-              <i className="ri-team-line text-xl text-purple-500"></i>
-              <h3 className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Team Members</h3>
-            </div>
-            <p className="text-3xl font-bold">1</p>
-          </div>
+          <p className="text-3xl font-bold">0</p>
+          <p className="text-xs text-gray-400 mt-2">Unread messages</p>
         </div>
+        
+        <div 
+          onClick={onNavigateToShifts}
+          className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg`}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <i className="ri-exchange-line text-xl text-green-500"></i>
+            <h3 className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Open Shifts</h3>
+          </div>
+          <p className="text-3xl font-bold">{openShiftsCount}</p>
+          <p className="text-xs text-gray-400 mt-2">Available to claim</p>
+        </div>
+      </div>
+
+      {/* Your Schedule Section (for selected bar) */}
+      <div>
+        <h3 className="text-lg font-semibold mb-3">Your Schedule</h3>
+        {barSchedule.length === 0 ? (
+          <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} text-center`}>
+            <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+              No upcoming shifts at {selectedBar}
+            </p>
+          </div>
+        ) : (
+          <div className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+            <div className="space-y-4">
+              {Array.from(groupedSchedule.entries()).map(([date, shifts]) => (
+                <div key={date}>
+                  <p className="text-sm font-medium text-gray-400 mb-2">{formatDateShort(date)}</p>
+                  <div className="space-y-2">
+                    {shifts.map((shift) => (
+                      <div key={shift.id} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <i className={`${getRoleIcon(shift.role)} text-sm w-5`}></i>
+                          <span className="text-sm capitalize">{shift.role}</span>
+                          <span className={`text-xs ${getShiftTypeColor(shift.shiftType)}`}>
+                            {shift.shiftType}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-400">
+                          {formatTimeShort(shift.startTime)} - {formatTimeShort(shift.endTime)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

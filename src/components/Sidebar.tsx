@@ -1,3 +1,5 @@
+import { mockUserShifts, formatDateShort, formatTimeShort, UserShift } from '../mocks/userShifts'
+
 interface SidebarProps {
   activePage: string
   setActivePage: (page: string) => void
@@ -5,6 +7,53 @@ interface SidebarProps {
   toggleTheme: () => void
   isMobileMenuOpen: boolean
   setIsMobileMenuOpen: (open: boolean) => void
+}
+
+// Helper to get shifts for next 5 days
+const getUpcomingShifts = (): UserShift[] => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  
+  const fiveDaysLater = new Date(today)
+  fiveDaysLater.setDate(today.getDate() + 5)
+  
+  return mockUserShifts.filter(shift => {
+    const shiftDate = new Date(shift.date)
+    return shiftDate >= today && shiftDate < fiveDaysLater
+  })
+}
+
+// Group shifts by date
+const groupShiftsByDate = (shifts: UserShift[]): Map<string, UserShift[]> => {
+  const grouped = new Map<string, UserShift[]>()
+  shifts.forEach(shift => {
+    const existing = grouped.get(shift.date) || []
+    existing.push(shift)
+    grouped.set(shift.date, existing)
+  })
+  return grouped
+}
+
+const getShiftTypeColor = (shiftType: string): string => {
+  switch(shiftType) {
+    case 'open': return 'text-green-500'
+    case 'swing': return 'text-yellow-500'
+    case 'close': return 'text-red-500'
+    default: return 'text-gray-400'
+  }
+}
+
+const getRoleIcon = (role: string): string => {
+  const r = role.toLowerCase()
+  if (r === 'bartender') return 'ri-goblet-line'
+  if (r === 'server') return 'ri-goblet-2-fill'
+  if (r === 'host') return 'ri-book-open-line'
+  if (r === 'cook') return 'ri-knife-line'
+  if (r === 'bar back') return 'ri-cup-line'
+  if (r === 'door') return 'ri-id-card-line'
+  if (r === 'sound') return 'ri-headphone-line'
+  if (r === 'manager') return 'ri-user-2-line'
+  return 'ri-user-smile-line'
 }
 
 export function Sidebar({ 
@@ -17,13 +66,16 @@ export function Sidebar({
 }: SidebarProps) {
   
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard' },
-    { id: 'shifts', label: 'Shift Swaps' },
-    { id: 'messages', label: 'Messages' },
-    { id: 'profile', label: 'Profile' },
-  ]
+  { id: 'dashboard', label: 'Dashboard' },
+  { id: 'shifts', label: 'Shift Swaps' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'messages', label: 'Messages' },
+  { id: 'profile', label: 'Profile' },
+]
 
-  // Inline the JSX instead of creating a separate component
+  const upcomingShifts = getUpcomingShifts()
+  const groupedShifts = groupShiftsByDate(upcomingShifts)
+
   const sidebarContent = (
     <>
       <div className="flex-1">
@@ -49,6 +101,38 @@ export function Sidebar({
             </button>
           ))}
         </nav>
+
+        {/* Your Shifts Section */}
+        {upcomingShifts.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-gray-700">
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
+              Your Shifts
+            </p>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto pr-1">
+              {Array.from(groupedShifts.entries()).map(([date, shifts]) => (
+                <div key={date}>
+                  <p className="text-xs text-gray-500 mb-1">{formatDateShort(date)}</p>
+                  <div className="space-y-2">
+                    {shifts.map((shift) => (
+                      <div key={shift.id} className="text-sm">
+                        <div className="flex items-center gap-1.5">
+                          <i className={`${getRoleIcon(shift.role)} text-xs w-4`}></i>
+                          <span className="font-medium">{shift.barName}</span>
+                          <span className={`text-xs ${getShiftTypeColor(shift.shiftType)}`}>
+                            {shift.shiftType}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-400 ml-5">
+                          {formatTimeShort(shift.startTime)} - {formatTimeShort(shift.endTime)}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Theme toggle at bottom of sidebar - centered */}
