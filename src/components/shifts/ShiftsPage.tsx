@@ -1,4 +1,5 @@
-import { mockSchedule, ScheduledWorker } from '../../mocks/schedule'
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
 
 export interface Shift {
   id: number
@@ -19,12 +20,39 @@ interface ShiftsPageProps {
   onOpenPostModal: () => void
 }
 
+interface ScheduledWorker {
+  id: number
+  name: string
+  role: string
+  date: string
+  start_time: string
+  end_time: string
+}
+
+interface Profile {
+  id: string
+  name: string
+}
+
+interface ScheduleItem {
+  id: number
+  bar_id: string
+  date: string
+  start_time: string
+  end_time: string
+  role: string
+  user_id: string | null
+}
+
 const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
+  // Parse the date as UTC to avoid timezone shift
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
   return date.toLocaleDateString('en-US', { 
     weekday: 'short', 
     month: 'short', 
-    day: 'numeric' 
+    day: 'numeric',
+    timeZone: 'UTC'
   })
 }
 
@@ -54,32 +82,97 @@ const doShiftsOverlap = (start1: string, end1: string, start2: string, end2: str
   return s1 < e2Adjusted && e1Adjusted > s2
 }
 
-const getCoworkersForShift = (
-  shiftDate: string, 
-  shiftStart: string, 
-  shiftEnd: string
-): ScheduledWorker[] => {
-  return mockSchedule.filter(coworker => {
-    if (coworker.date !== shiftDate) return false
-    return doShiftsOverlap(shiftStart, shiftEnd, coworker.start_time, coworker.end_time)
-  })
-}
-
 const getRoleIcon = (role: string): string => {
-  const r = role.toLowerCase().trim()
+  const r = role.toLowerCase()
   if (r === 'bartender') return 'ri-goblet-line'
   if (r === 'server') return 'ri-goblet-2-fill'
   if (r === 'host') return 'ri-book-open-line'
   if (r === 'cook') return 'ri-knife-line'
-  if (r === 'bar back' || r === 'barback') return 'ri-cup-line'
-  if (r === 'door' || r === 'security') return 'ri-id-card-line'
+  if (r === 'bar back') return 'ri-cup-line'
+  if (r === 'door') return 'ri-id-card-line'
   if (r === 'sound') return 'ri-headphone-line'
   if (r === 'manager') return 'ri-user-2-line'
   return 'ri-user-smile-line'
 }
 
 export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: ShiftsPageProps) {
+  const [schedule, setSchedule] = useState<ScheduledWorker[]>([])
+  const [loading, setLoading] = useState(true)
   const openShifts = shifts.filter(shift => shift.status === 'open')
+
+  console.log('All schedule data:', schedule)
+
+  useEffect(() => {
+    const loadSchedule = async () => {
+      try {
+        setLoading(true)
+        
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('id, name')
+        
+        if (profilesError) {
+          console.error('Error loading profiles:', profilesError)
+          setLoading(false)
+          return
+        }
+
+        const profileMap = new Map<string, string>()
+        profilesData?.forEach((p: Profile) => {
+          profileMap.set(p.id, p.name)
+        })
+
+        const { data: scheduleData, error: scheduleError } = await supabase
+          .from('schedule')
+          .select('*')
+
+        if (scheduleError) {
+          console.error('Error loading schedule:', scheduleError)
+          setLoading(false)
+          return
+        }
+
+        if (scheduleData) {
+          const scheduleWithNames: ScheduledWorker[] = scheduleData.map((item: ScheduleItem) => ({
+            id: item.id,
+            name: profileMap.get(item.user_id || '') || 'Unassigned',
+            role: item.role,
+            date: item.date,
+            start_time: item.start_time,
+            end_time: item.end_time
+          }))
+          setSchedule(scheduleWithNames)
+        }
+      } catch (err) {
+        console.error('Error in loadSchedule:', err)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadSchedule()
+  }, [])
+
+  const getCoworkersForShift = (shiftDate: string, shiftStart: string, shiftEnd: string): ScheduledWorker[] => {
+    console.log('Looking for date:', shiftDate)
+    console.log('Schedule entries for this date:', schedule.filter(c => c.date === shiftDate))
+    
+    return schedule.filter(coworker => {
+      if (coworker.date !== shiftDate) return false
+      return doShiftsOverlap(shiftStart, shiftEnd, coworker.start_time, coworker.end_time)
+    })
+  }
+
+  if (loading) {
+    return (
+      <div>
+        <h2 className="text-2xl font-bold mb-4">Shift Swaps</h2>
+        <p className={`mb-6 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+          Loading schedule...
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div>
@@ -106,8 +199,9 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
           </div>
         ) : (
           openShifts.map((shift) => {
-            const coworkers = getCoworkersForShift(shift.date, shift.start_time, shift.end_time)
-            
+  console.log('Raw shift object:', shift)
+  console.log('Open shift date:', shift.date, 'start:', shift.start_time, 'end:', shift.end_time)
+  const coworkers = getCoworkersForShift(shift.date, shift.start_time, shift.end_time)
             return (
               <div key={shift.id} className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} flex flex-col`}>
                 <div className="flex-1">

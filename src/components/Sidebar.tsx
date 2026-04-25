@@ -1,4 +1,5 @@
-import { mockUserShifts, formatDateShort, formatTimeShort, UserShift } from '../mocks/userShifts'
+import { useState, useEffect } from 'react'
+import { supabase } from '../lib/supabase'
 
 interface SidebarProps {
   activePage: string
@@ -9,38 +10,33 @@ interface SidebarProps {
   setIsMobileMenuOpen: (open: boolean) => void
 }
 
-// Helper to get shifts for next 5 days
-const getUpcomingShifts = (): UserShift[] => {
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
-  
-  const fiveDaysLater = new Date(today)
-  fiveDaysLater.setDate(today.getDate() + 5)
-  
-  return mockUserShifts.filter(shift => {
-    const shiftDate = new Date(shift.date)
-    return shiftDate >= today && shiftDate < fiveDaysLater
-  })
+interface UserShift {
+  id: number
+  barName: string
+  date: string
+  role: string
+  start_time: string
+  end_time: string
 }
 
-// Group shifts by date
-const groupShiftsByDate = (shifts: UserShift[]): Map<string, UserShift[]> => {
-  const grouped = new Map<string, UserShift[]>()
-  shifts.forEach(shift => {
-    const existing = grouped.get(shift.date) || []
-    existing.push(shift)
-    grouped.set(shift.date, existing)
-  })
-  return grouped
+const formatTimeShort = (timeString: string): string => {
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'pm' : 'am'
+  const hour12 = hour % 12 || 12
+  const minuteStr = minutes !== '00' ? `:${minutes}` : ''
+  return `${hour12}${minuteStr}${ampm}`
 }
 
-const getShiftTypeColor = (shiftType: string): string => {
-  switch(shiftType) {
-    case 'open': return 'text-green-500'
-    case 'swing': return 'text-yellow-500'
-    case 'close': return 'text-red-500'
-    default: return 'text-gray-400'
-  }
+const formatDateShort = (dateString: string): string => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'numeric', 
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
 }
 
 const getRoleIcon = (role: string): string => {
@@ -50,9 +46,6 @@ const getRoleIcon = (role: string): string => {
   if (r === 'host') return 'ri-book-open-line'
   if (r === 'cook') return 'ri-knife-line'
   if (r === 'bar back') return 'ri-cup-line'
-  if (r === 'door') return 'ri-id-card-line'
-  if (r === 'sound') return 'ri-headphone-line'
-  if (r === 'manager') return 'ri-user-2-line'
   return 'ri-user-smile-line'
 }
 
@@ -64,17 +57,71 @@ export function Sidebar({
   isMobileMenuOpen, 
   setIsMobileMenuOpen 
 }: SidebarProps) {
-  
-  const navItems = [
-  { id: 'dashboard', label: 'Dashboard' },
-  { id: 'shifts', label: 'Shift Swaps' },
-  { id: 'schedule', label: 'Schedule' },
-  { id: 'messages', label: 'Messages' },
-  { id: 'profile', label: 'Profile' },
-]
+  const [userShifts, setUserShifts] = useState<UserShift[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
 
-  const upcomingShifts = getUpcomingShifts()
-  const groupedShifts = groupShiftsByDate(upcomingShifts)
+  const navItems = [
+    { id: 'dashboard', label: 'Dashboard' },
+    { id: 'shifts', label: 'Shift Swaps' },
+    { id: 'schedule', label: 'Schedule' },
+    { id: 'messages', label: 'Messages' },
+    { id: 'profile', label: 'Profile' },
+  ]
+
+  // Get current user ID
+  useEffect(() => {
+    const getUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+      }
+    }
+    getUserId()
+  }, [])
+
+  // Load user's upcoming shifts from schedule table
+  useEffect(() => {
+    if (!userId) return
+
+    const loadUserShifts = async () => {
+      const today = new Date()
+      const endDate = new Date()
+      endDate.setDate(today.getDate() + 5)
+      
+      const todayStr = today.toISOString().split('T')[0]
+      const endStr = endDate.toISOString().split('T')[0]
+
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('*')
+        .eq('user_id', userId)
+        .gte('date', todayStr)
+        .lte('date', endStr)
+        .order('date', { ascending: true })
+
+      if (!error && data) {
+        const shifts: UserShift[] = data.map((item: any) => ({
+          id: item.id,
+          barName: item.bar_id,
+          date: item.date,
+          role: item.role,
+          start_time: item.start_time,
+          end_time: item.end_time
+        }))
+        setUserShifts(shifts)
+      }
+    }
+
+    loadUserShifts()
+  }, [userId])
+
+  // Group shifts by date
+  const groupedShifts = new Map<string, UserShift[]>()
+  userShifts.forEach(shift => {
+    const existing = groupedShifts.get(shift.date) || []
+    existing.push(shift)
+    groupedShifts.set(shift.date, existing)
+  })
 
   const sidebarContent = (
     <>
@@ -103,7 +150,7 @@ export function Sidebar({
         </nav>
 
         {/* Your Shifts Section */}
-        {upcomingShifts.length > 0 && (
+        {userShifts.length > 0 && (
           <div className="mt-6 pt-4 border-t border-gray-700">
             <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Your Shifts
@@ -118,12 +165,9 @@ export function Sidebar({
                         <div className="flex items-center gap-1.5">
                           <i className={`${getRoleIcon(shift.role)} text-xs w-4`}></i>
                           <span className="font-medium">{shift.barName}</span>
-                          <span className={`text-xs ${getShiftTypeColor(shift.shiftType)}`}>
-                            {shift.shiftType}
-                          </span>
                         </div>
                         <p className="text-xs text-gray-400 ml-5">
-                          {formatTimeShort(shift.startTime)} - {formatTimeShort(shift.endTime)}
+                          {formatTimeShort(shift.start_time)} - {formatTimeShort(shift.end_time)}
                         </p>
                       </div>
                     ))}
@@ -135,7 +179,6 @@ export function Sidebar({
         )}
       </div>
 
-      {/* Theme toggle at bottom of sidebar - centered */}
       <div className="flex justify-center pt-4 border-t border-gray-700 mt-4">
         <button 
           onClick={toggleTheme}
@@ -150,7 +193,6 @@ export function Sidebar({
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside className={`
         hidden lg:flex lg:flex-col w-64 p-4 shadow-lg border-r
         ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}
@@ -158,7 +200,6 @@ export function Sidebar({
         {sidebarContent}
       </aside>
 
-      {/* Mobile sidebar - fixed overlay */}
       {isMobileMenuOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"

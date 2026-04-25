@@ -1,19 +1,12 @@
+import { useState, useEffect } from 'react'
+import { supabase } from '../../lib/supabase'
+
 interface Alert {
   id: number
   type: '86' | 'doh' | 'customer' | 'meeting'
   title: string
   message: string
   date: string
-}
-
-interface ScheduleShift {
-  id: number
-  barName: string
-  date: string
-  role: string
-  shiftType: string
-  startTime: string
-  endTime: string
 }
 
 interface DashboardProps {
@@ -29,6 +22,14 @@ interface DashboardProps {
   openShiftsCount: number
   onNavigateToMessages: () => void
   onNavigateToShifts: () => void
+}
+
+interface UserScheduleShift {
+  id: number
+  date: string
+  start_time: string
+  end_time: string
+  role: string
 }
 
 const getAlertIcon = (type: string) => {
@@ -51,13 +52,24 @@ const getAlertColor = (type: string) => {
   }
 }
 
-const getShiftTypeColor = (shiftType: string): string => {
-  switch(shiftType) {
-    case 'open': return 'text-green-500'
-    case 'swing': return 'text-yellow-500'
-    case 'close': return 'text-red-500'
-    default: return 'text-gray-400'
-  }
+const formatTimeShort = (timeString: string): string => {
+  const [hours, minutes] = timeString.split(':')
+  const hour = parseInt(hours, 10)
+  const ampm = hour >= 12 ? 'pm' : 'am'
+  const hour12 = hour % 12 || 12
+  const minuteStr = minutes !== '00' ? `:${minutes}` : ''
+  return `${hour12}${minuteStr}${ampm}`
+}
+
+const formatDateShort = (dateString: string): string => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return date.toLocaleDateString('en-US', { 
+    weekday: 'short', 
+    month: 'numeric', 
+    day: 'numeric',
+    timeZone: 'UTC'
+  })
 }
 
 const getRoleIcon = (role: string): string => {
@@ -73,47 +85,6 @@ const getRoleIcon = (role: string): string => {
   return 'ri-user-smile-line'
 }
 
-const formatTimeShort = (timeString: string): string => {
-  const [hours, minutes] = timeString.split(':')
-  const hour = parseInt(hours)
-  const ampm = hour >= 12 ? 'pm' : 'am'
-  const hour12 = hour % 12 || 12
-  const minuteStr = minutes !== '00' ? `:${minutes}` : ''
-  return `${hour12}${minuteStr}${ampm}`
-}
-
-const formatDateShort = (dateString: string): string => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', { 
-    weekday: 'short', 
-    month: 'numeric', 
-    day: 'numeric' 
-  })
-}
-
-const getScheduleForBar = (barName: string): ScheduleShift[] => {
-  const allShifts: ScheduleShift[] = [
-    { id: 1, barName: 'Bonus Room', date: '2026-04-25', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
-    { id: 2, barName: 'Bonus Room', date: '2026-04-26', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
-    { id: 3, barName: 'The Local', date: '2026-04-27', role: 'bar back', shiftType: 'swing', startTime: '16:00', endTime: '22:00' },
-    { id: 4, barName: 'Bonus Room', date: '2026-04-27', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
-    { id: 5, barName: 'Bonus Room', date: '2026-04-28', role: 'bartender', shiftType: 'close', startTime: '20:00', endTime: '02:00' },
-    { id: 6, barName: 'The Local', date: '2026-04-29', role: 'bartender', shiftType: 'swing', startTime: '18:00', endTime: '01:00' },
-  ]
-  
-  return allShifts.filter(shift => shift.barName === barName)
-}
-
-const groupShiftsByDate = (shifts: ScheduleShift[]): Map<string, ScheduleShift[]> => {
-  const grouped = new Map<string, ScheduleShift[]>()
-  shifts.forEach(shift => {
-    const existing = grouped.get(shift.date) || []
-    existing.push(shift)
-    grouped.set(shift.date, existing)
-  })
-  return grouped
-}
-
 export function Dashboard({
   selectedBar,
   setSelectedBar,
@@ -126,8 +97,63 @@ export function Dashboard({
   onNavigateToMessages,
   onNavigateToShifts
 }: DashboardProps) {
-  const barSchedule = getScheduleForBar(selectedBar)
-  const groupedSchedule = groupShiftsByDate(barSchedule)
+  const [userSchedule, setUserSchedule] = useState<UserScheduleShift[]>([])
+  const [userId, setUserId] = useState<string | null>(null)
+
+  // Get current user ID
+  useEffect(() => {
+    const getUserId = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        setUserId(user.id)
+      }
+    }
+    getUserId()
+  }, [])
+
+  // Load user's schedule for selected bar
+  useEffect(() => {
+    if (!userId) return
+
+    const loadSchedule = async () => {
+      const today = new Date()
+      const endDate = new Date()
+      endDate.setDate(today.getDate() + 7)
+      
+      const todayStr = today.toISOString().split('T')[0]
+      const endStr = endDate.toISOString().split('T')[0]
+
+      const { data, error } = await supabase
+        .from('schedule')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('bar_id', selectedBar)
+        .gte('date', todayStr)
+        .lte('date', endStr)
+        .order('date', { ascending: true })
+
+      if (!error && data) {
+        const shifts: UserScheduleShift[] = data.map((item: any) => ({
+          id: item.id,
+          date: item.date,
+          start_time: item.start_time,
+          end_time: item.end_time,
+          role: item.role
+        }))
+        setUserSchedule(shifts)
+      }
+    }
+
+    loadSchedule()
+  }, [userId, selectedBar])
+
+  // Group shifts by date
+  const groupedSchedule = new Map<string, UserScheduleShift[]>()
+  userSchedule.forEach(shift => {
+    const existing = groupedSchedule.get(shift.date) || []
+    existing.push(shift)
+    groupedSchedule.set(shift.date, existing)
+  })
 
   return (
     <div>
@@ -213,10 +239,10 @@ export function Dashboard({
         </div>
       </div>
 
-      {/* Your Schedule Section (for selected bar) */}
+      {/* Your Schedule Section (real data from schedule table) */}
       <div>
         <h3 className="text-lg font-semibold mb-3">Your Schedule</h3>
-        {barSchedule.length === 0 ? (
+        {userSchedule.length === 0 ? (
           <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} text-center`}>
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               No upcoming shifts at {selectedBar}
@@ -233,14 +259,10 @@ export function Dashboard({
                       <div key={shift.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <i className={`${getRoleIcon(shift.role)} text-sm w-5`}></i>
-                          <span className="text-sm capitalize">{shift.role}</span>
-                          <span className={`text-xs ${getShiftTypeColor(shift.shiftType)}`}>
-                            {shift.shiftType}
-                          </span>
+                          <p className="text-sm text-gray-400">
+                            {formatTimeShort(shift.start_time)} - {formatTimeShort(shift.end_time)}
+                          </p>
                         </div>
-                        <p className="text-sm text-gray-400">
-                          {formatTimeShort(shift.startTime)} - {formatTimeShort(shift.endTime)}
-                        </p>
                       </div>
                     ))}
                   </div>
