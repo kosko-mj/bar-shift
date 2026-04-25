@@ -16,7 +16,7 @@ export interface Shift {
 interface ShiftsPageProps {
   shifts: Shift[]
   isDark: boolean
-  onClaimShift: (shiftId: number) => void
+  onClaimShift: (shiftId: number, shiftDate: string, shiftStartTime: string, shiftEndTime: string, shiftRole: string) => void
   onOpenPostModal: () => void
 }
 
@@ -45,7 +45,6 @@ interface ScheduleItem {
 }
 
 const formatDate = (dateString: string): string => {
-  // Parse the date as UTC to avoid timezone shift
   const [year, month, day] = dateString.split('-').map(Number)
   const date = new Date(Date.UTC(year, month - 1, day))
   return date.toLocaleDateString('en-US', { 
@@ -100,8 +99,6 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
   const [loading, setLoading] = useState(true)
   const openShifts = shifts.filter(shift => shift.status === 'open')
 
-  console.log('All schedule data:', schedule)
-
   useEffect(() => {
     const loadSchedule = async () => {
       try {
@@ -154,9 +151,6 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
   }, [])
 
   const getCoworkersForShift = (shiftDate: string, shiftStart: string, shiftEnd: string): ScheduledWorker[] => {
-    console.log('Looking for date:', shiftDate)
-    console.log('Schedule entries for this date:', schedule.filter(c => c.date === shiftDate))
-    
     return schedule.filter(coworker => {
       if (coworker.date !== shiftDate) return false
       return doShiftsOverlap(shiftStart, shiftEnd, coworker.start_time, coworker.end_time)
@@ -199,9 +193,7 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
           </div>
         ) : (
           openShifts.map((shift) => {
-  console.log('Raw shift object:', shift)
-  console.log('Open shift date:', shift.date, 'start:', shift.start_time, 'end:', shift.end_time)
-  const coworkers = getCoworkersForShift(shift.date, shift.start_time, shift.end_time)
+            const coworkers = getCoworkersForShift(shift.date, shift.start_time, shift.end_time)
             return (
               <div key={shift.id} className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} flex flex-col`}>
                 <div className="flex-1">
@@ -218,7 +210,7 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
                       )}
                     </div>
                     <button 
-                      onClick={() => onClaimShift(shift.id)}
+                      onClick={() => onClaimShift(shift.id, shift.date, shift.start_time, shift.end_time, shift.role)}
                       className={`px-3 py-1 border text-sm rounded-lg transition-colors ${
                         isDark ? 'border-gray-700 hover:border-gray-500' : 'border-gray-300 hover:border-gray-400'
                       }`}

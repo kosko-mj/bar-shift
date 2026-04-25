@@ -32,6 +32,16 @@ interface UserScheduleShift {
   role: string
 }
 
+interface ScheduleItem {
+  id: number
+  bar_id: string
+  date: string
+  start_time: string
+  end_time: string
+  role: string
+  user_id: string | null
+}
+
 const getAlertIcon = (type: string) => {
   switch(type) {
     case '86': return 'ri-restaurant-line'
@@ -133,15 +143,15 @@ export function Dashboard({
         .order('date', { ascending: true })
 
       if (!error && data) {
-        const shifts: UserScheduleShift[] = data.map((item: any) => ({
-          id: item.id,
-          date: item.date,
-          start_time: item.start_time,
-          end_time: item.end_time,
-          role: item.role
+        const shifts: UserScheduleShift[] = data.map((item: ScheduleItem) => ({
+            id: item.id,
+            date: item.date,
+            start_time: item.start_time,
+            end_time: item.end_time,
+            role: item.role
         }))
         setUserSchedule(shifts)
-      }
+        }
     }
 
     loadSchedule()

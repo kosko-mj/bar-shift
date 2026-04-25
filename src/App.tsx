@@ -167,17 +167,87 @@ function App() {
     checkUser()
   }, [])
 
-  const claimShift = async (shiftId: number) => {
-    const { error } = await supabase
+  // Real-time subscription for shifts AND schedule
+  useEffect(() => {
+    const channel = supabase
+      .channel('db-changes')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'shifts' },
+        () => {
+          console.log('Shifts changed, reloading...')
+          loadShifts()
+        }
+      )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'schedule' },
+        () => {
+          console.log('Schedule changed, reloading shifts...')
+          loadShifts()
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
+
+  const claimShift = async (shiftId: number, shiftDate: string, shiftStartTime: string, shiftEndTime: string, shiftRole: string) => {
+    // First, claim the open shift
+    const { error: claimError } = await supabase
       .from('shifts')
       .update({ status: 'claimed' })
       .eq('id', shiftId)
     
-    if (error) {
-      console.error('Error claiming shift:', error)
-    } else {
-      loadShifts()
+    if (claimError) {
+      console.error('Error claiming shift:', claimError)
+      return
     }
+
+    // Now update the schedule: find existing shift for that time/role and replace with claimant
+    const { data: scheduleData, error: scheduleError } = await supabase
+      .from('schedule')
+      .select('*')
+      .eq('date', shiftDate)
+      .eq('role', shiftRole)
+      .gte('start_time', shiftStartTime)
+      .lte('end_time', shiftEndTime)
+
+    if (scheduleError) {
+      console.error('Error finding schedule shift:', scheduleError)
+      return
+    }
+
+    if (scheduleData && scheduleData.length > 0) {
+      // Update existing schedule shift with the claimant
+      const { error: updateError } = await supabase
+        .from('schedule')
+        .update({ user_id: userId })
+        .eq('id', scheduleData[0].id)
+      
+      if (updateError) {
+        console.error('Error updating schedule:', updateError)
+      }
+    } else {
+      // No existing schedule shift, create one
+      const { error: insertError } = await supabase
+        .from('schedule')
+        .insert([{
+          bar_id: selectedBar,
+          date: shiftDate,
+          start_time: shiftStartTime,
+          end_time: shiftEndTime,
+          role: shiftRole,
+          user_id: userId
+        }])
+      
+      if (insertError) {
+        console.error('Error creating schedule shift:', insertError)
+      }
+    }
+
+    // Reload shifts
+    loadShifts()
   }
 
   const postShift = async () => {

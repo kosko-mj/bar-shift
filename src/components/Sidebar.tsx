@@ -19,6 +19,17 @@ interface UserShift {
   end_time: string
 }
 
+interface ScheduleItem {
+  id: number
+  bar_id: string
+  date: string
+  start_time: string
+  end_time: string
+  role: string
+  user_id: string | null
+}
+
+
 const formatTimeShort = (timeString: string): string => {
   const [hours, minutes] = timeString.split(':')
   const hour = parseInt(hours, 10)
@@ -100,16 +111,16 @@ export function Sidebar({
         .order('date', { ascending: true })
 
       if (!error && data) {
-        const shifts: UserShift[] = data.map((item: any) => ({
-          id: item.id,
-          barName: item.bar_id,
-          date: item.date,
-          role: item.role,
-          start_time: item.start_time,
-          end_time: item.end_time
+        const shifts: UserShift[] = data.map((item: ScheduleItem) => ({
+            id: item.id,
+            barName: item.bar_id,
+            date: item.date,
+            role: item.role,
+            start_time: item.start_time,
+            end_time: item.end_time
         }))
         setUserShifts(shifts)
-      }
+        }
     }
 
     loadUserShifts()

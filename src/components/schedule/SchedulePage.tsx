@@ -251,6 +251,58 @@ export function SchedulePage({ isDark, barName }: SchedulePageProps) {
     setStartDate(new Date())
   }
 
+  const copyWeekToNext = async () => {
+  if (!confirm('Copy all shifts from current week to next week? This will not overwrite existing shifts in next week.')) return
+
+  const firstDay = currentWeekDates[0].toISOString().split('T')[0]
+  const lastDay = currentWeekDates[6].toISOString().split('T')[0]
+
+  const { data: currentWeekShifts, error: fetchError } = await supabase
+    .from('schedule')
+    .select('*')
+    .eq('bar_id', barName)
+    .gte('date', firstDay)
+    .lte('date', lastDay)
+
+  if (fetchError) {
+    console.error('Error fetching current week shifts:', fetchError)
+    alert('Failed to copy shifts')
+    return
+  }
+
+  if (!currentWeekShifts || currentWeekShifts.length === 0) {
+    alert('No shifts in current week to copy')
+    return
+  }
+
+  const nextWeekShifts = currentWeekShifts.map(shift => {
+    const originalDate = new Date(shift.date)
+    const newDate = new Date(originalDate)
+    newDate.setDate(originalDate.getDate() + 7)
+    
+    return {
+      bar_id: shift.bar_id,
+      date: newDate.toISOString().split('T')[0],
+      start_time: shift.start_time,
+      end_time: shift.end_time,
+      role: shift.role,
+      user_id: shift.user_id
+    }
+  })
+
+  const { error: insertError } = await supabase
+    .from('schedule')
+    .insert(nextWeekShifts)
+
+  if (insertError) {
+    console.error('Error copying shifts:', insertError)
+    alert('Failed to copy shifts')
+  } else {
+    alert(`Copied ${nextWeekShifts.length} shifts to next week`)
+    setStartDate(prev => new Date(prev))
+  }
+}
+
   const getShiftsForDate = (dateStr: string): ScheduleShift[] => {
     return schedule.filter((shift: ScheduleShift) => shift.date === dateStr)
   }
@@ -343,14 +395,23 @@ export function SchedulePage({ isDark, barName }: SchedulePageProps) {
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-bold">Schedule</h2>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
-          type="button"
-        >
-          + Add Shift
-        </button>
-      </div>
+        <div className="flex gap-2">
+            <button
+            onClick={copyWeekToNext}
+            className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-blue-700 hover:bg-blue-600' : 'bg-blue-200 hover:bg-blue-300'}`}
+            type="button"
+            >
+            Copy Week
+            </button>
+            <button
+            onClick={() => setShowAddModal(true)}
+            className={`px-4 py-2 rounded-lg transition-colors ${isDark ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+            type="button"
+            >
+            + Add Shift
+            </button>
+        </div>
+    </div>
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex gap-2">
