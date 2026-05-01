@@ -75,9 +75,10 @@ export function Sidebar({
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'shifts', label: 'Shift Swaps' },
     { id: 'schedule', label: 'Schedule' },
+    { id: 'alerts', label: 'Alerts' },
     { id: 'messages', label: 'Messages' },
     { id: 'profile', label: 'Profile' },
-  ]
+]
 
   // Get current user ID
   useEffect(() => {

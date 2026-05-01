@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { supabase } from './lib/supabase'
 import { Sidebar } from './components/Sidebar'
 import { Dashboard } from './components/dashboard/Dashboard'
@@ -7,13 +7,17 @@ import { ProfilePage } from './components/profile/ProfilePage'
 import { SchedulePage } from './components/schedule/SchedulePage'
 import { AuthModal } from './components/modals/AuthModal'
 import { PostShiftModal } from './components/modals/PostShiftModal'
+import { AlertsPage } from './components/alerts/AlertsPage'
 
-interface Alert {
+interface DbAlert {
   id: number
-  type: '86' | 'doh' | 'customer' | 'meeting'
   title: string
+  type: string
+  severity: string
+  status: string
   message: string
-  date: string
+  end_time: string | null
+  created_at: string
 }
 
 function App() {
@@ -41,14 +45,7 @@ function App() {
   const [userPosition, setUserPosition] = useState('')
   const [userBars, setUserBars] = useState(['Bonus Room'])
   const [isSaving, setIsSaving] = useState(false)
-
-  const alerts: Alert[] = [
-    { id: 1, type: '86', title: '86 - Narragansett', message: 'Sold out until Tuesday delivery', date: '2026-04-24' },
-    { id: 2, type: '86', title: '86 - Fries', message: 'Potato shortage — sub tots or upgrade to onion rings', date: '2026-04-24' },
-    { id: 3, type: 'doh', title: 'DOH Alert', message: 'Health department in area. Be ready!', date: '2026-04-23' },
-    { id: 4, type: 'customer', title: 'Problem Customer Alert', message: 'Ridgewood area — male, 40s, aggressive. Call security if seen.', date: '2026-04-22' },
-    { id: 5, type: 'meeting', title: 'Staff Meeting', message: 'Mandatory all-hands meeting Monday 4/28 10am', date: '2026-04-28' },
-  ]
+  const [activeAlerts, setActiveAlerts] = useState<DbAlert[]>([])
 
   const loadProfile = async (uid: string) => {
     const { data, error } = await supabase
@@ -110,6 +107,26 @@ function App() {
     }
   }
 
+  const loadGlobalAlerts = useCallback(async () => {
+    console.log('App: Loading global alerts for bar:', selectedBar)
+    const now = new Date().toISOString()
+    
+    const { data, error } = await supabase
+      .from('alerts')
+      .select('*')
+      .eq('bar_id', selectedBar)
+      .in('status', ['open', 'acknowledged'])
+      .or(`end_time.is.null,end_time.gt.${now}`)
+      .order('created_at', { ascending: false })
+      
+    if (error) {
+      console.error('App: Error loading alerts:', error)
+    } else if (data) {
+      console.log('App: Loaded', data.length, 'alerts')
+      setActiveAlerts([...data])
+    }
+  }, [selectedBar])
+
   const handleAuth = async () => {
     setAuthError('')
     
@@ -154,20 +171,21 @@ function App() {
   }
 
   useEffect(() => {
-    const checkUser = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session?.user) {
-        setUserId(session.user.id)
-        await loadProfile(session.user.id)
-        await loadShifts()
-      } else {
-        setShowAuthModal(true)
-      }
+  const checkUser = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (session?.user) {
+      setUserId(session.user.id)
+      await loadProfile(session.user.id)
+      await loadShifts()
+      await loadGlobalAlerts()
+    } else {
+      setShowAuthModal(true)
     }
-    checkUser()
-  }, [])
+  }
+  checkUser()
+}, [loadGlobalAlerts])
 
-  // Real-time subscription for shifts AND schedule
+  // Real-time subscription for shifts AND schedule AND alerts
   useEffect(() => {
     const channel = supabase
       .channel('db-changes')
@@ -185,15 +203,30 @@ function App() {
           loadShifts()
         }
       )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'alerts' },
+        () => {
+          console.log('Alerts changed, reloading...')
+          loadGlobalAlerts()
+        }
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [])
+  }, [loadGlobalAlerts])
+
+  // Polling fallback for alerts (every 10 seconds)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      console.log('Polling: Refreshing alerts...')
+      loadGlobalAlerts()
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [selectedBar, loadGlobalAlerts])
 
   const claimShift = async (shiftId: number, shiftDate: string, shiftStartTime: string, shiftEndTime: string, shiftRole: string) => {
-    // First, claim the open shift
     const { error: claimError } = await supabase
       .from('shifts')
       .update({ status: 'claimed' })
@@ -204,7 +237,6 @@ function App() {
       return
     }
 
-    // Now update the schedule: find existing shift for that time/role and replace with claimant
     const { data: scheduleData, error: scheduleError } = await supabase
       .from('schedule')
       .select('*')
@@ -219,7 +251,6 @@ function App() {
     }
 
     if (scheduleData && scheduleData.length > 0) {
-      // Update existing schedule shift with the claimant
       const { error: updateError } = await supabase
         .from('schedule')
         .update({ user_id: userId })
@@ -229,7 +260,6 @@ function App() {
         console.error('Error updating schedule:', updateError)
       }
     } else {
-      // No existing schedule shift, create one
       const { error: insertError } = await supabase
         .from('schedule')
         .insert([{
@@ -246,7 +276,6 @@ function App() {
       }
     }
 
-    // Reload shifts
     loadShifts()
   }
 
@@ -316,16 +345,14 @@ function App() {
 
         {activePage === 'dashboard' && (
           <Dashboard
-            userName={userName}
-            authEmail={authEmail}
             selectedBar={selectedBar}
             setSelectedBar={setSelectedBar}
             showBarDropdown={showBarDropdown}
             setShowBarDropdown={setShowBarDropdown}
             userBars={userBars}
-            alerts={alerts}
             isDark={isDark}
             openShiftsCount={shifts.filter(s => s.status === 'open').length}
+            activeAlerts={activeAlerts}
             onNavigateToMessages={() => setActivePage('messages')}
             onNavigateToShifts={() => setActivePage('shifts')}
           />
@@ -342,6 +369,10 @@ function App() {
 
         {activePage === 'schedule' && (
           <SchedulePage isDark={isDark} barName={selectedBar} />
+        )}
+
+        {activePage === 'alerts' && (
+          <AlertsPage isDark={isDark} barName={selectedBar} userId={userId} isManager={true} />
         )}
 
         {activePage === 'messages' && (

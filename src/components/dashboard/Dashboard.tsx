@@ -1,25 +1,15 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 
-interface Alert {
-  id: number
-  type: '86' | 'doh' | 'customer' | 'meeting'
-  title: string
-  message: string
-  date: string
-}
-
 interface DashboardProps {
-  userName: string
-  authEmail: string
   selectedBar: string
   setSelectedBar: (bar: string) => void
   showBarDropdown: boolean
   setShowBarDropdown: (show: boolean) => void
   userBars: string[]
-  alerts: Alert[]
   isDark: boolean
   openShiftsCount: number
+  activeAlerts: DbAlert[]
   onNavigateToMessages: () => void
   onNavigateToShifts: () => void
 }
@@ -32,6 +22,17 @@ interface UserScheduleShift {
   role: string
 }
 
+interface DbAlert {
+  id: number
+  title: string
+  type: string
+  severity: string
+  status: string
+  message: string
+  end_time: string | null
+  created_at: string
+}
+
 interface ScheduleItem {
   id: number
   bar_id: string
@@ -40,26 +41,6 @@ interface ScheduleItem {
   end_time: string
   role: string
   user_id: string | null
-}
-
-const getAlertIcon = (type: string) => {
-  switch(type) {
-    case '86': return 'ri-restaurant-line'
-    case 'doh': return 'ri-government-line'
-    case 'customer': return 'ri-user-forbid-line'
-    case 'meeting': return 'ri-calendar-event-line'
-    default: return 'ri-notification-line'
-  }
-}
-
-const getAlertColor = (type: string) => {
-  switch(type) {
-    case '86': return 'text-purple-500 border-purple-500/30 bg-purple-500/5'
-    case 'doh': return 'text-blue-500 border-blue-500/30 bg-blue-500/5'
-    case 'customer': return 'text-red-500 border-red-500/30 bg-red-500/5'
-    case 'meeting': return 'text-amber-500 border-amber-500/30 bg-amber-500/5'
-    default: return 'text-gray-500 border-gray-500/30 bg-gray-500/5'
-  }
 }
 
 const formatTimeShort = (timeString: string): string => {
@@ -82,6 +63,16 @@ const formatDateShort = (dateString: string): string => {
   })
 }
 
+const formatDateTime = (dateString: string): string => {
+  const date = new Date(dateString)
+  return date.toLocaleDateString('en-US', { 
+    month: 'short', 
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit'
+  })
+}
+
 const getRoleIcon = (role: string): string => {
   const r = role.toLowerCase()
   if (r === 'bartender') return 'ri-goblet-line'
@@ -95,22 +86,54 @@ const getRoleIcon = (role: string): string => {
   return 'ri-user-smile-line'
 }
 
+const formatRemainingTime = (endTime: string | null): string => {
+  if (!endTime) return ''
+  const end = new Date(endTime)
+  const now = new Date()
+  const hoursLeft = Math.ceil((end.getTime() - now.getTime()) / (1000 * 60 * 60))
+  if (hoursLeft <= 0) return 'Expired'
+  if (hoursLeft < 24) return `${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''} left`
+  const daysLeft = Math.ceil(hoursLeft / 24)
+  return `${daysLeft} day${daysLeft !== 1 ? 's' : ''} left`
+}
+
+const getAlertIcon = (alertType: string): string => {
+  switch(alertType) {
+    case '86': return 'ri-restaurant-line'
+    case 'staff_meeting': return 'ri-calendar-event-line'
+    case 'doh': return 'ri-government-line'
+    case 'incident': return 'ri-alert-line'
+    case 'customer_86': return 'ri-user-forbid-line'
+    case 'maintenance': return 'ri-tools-line'
+    case 'staff_notice': return 'ri-team-line'
+    case 'shift_handoff': return 'ri-exchange-line'
+    default: return 'ri-notification-line'
+  }
+}
+
+const getAlertTextColor = (alertType: string): string => {
+  if (alertType === '86') return 'text-red-500'
+  if (alertType === 'staff_meeting') return 'text-blue-500'
+  if (alertType === 'customer_86') return 'text-purple-500'
+  if (alertType === 'incident') return 'text-red-600'
+  return 'text-yellow-500'
+}
+
 export function Dashboard({
   selectedBar,
   setSelectedBar,
   showBarDropdown,
   setShowBarDropdown,
   userBars,
-  alerts,
   isDark,
   openShiftsCount,
+  activeAlerts,
   onNavigateToMessages,
   onNavigateToShifts
 }: DashboardProps) {
   const [userSchedule, setUserSchedule] = useState<UserScheduleShift[]>([])
   const [userId, setUserId] = useState<string | null>(null)
 
-  // Get current user ID
   useEffect(() => {
     const getUserId = async () => {
       const { data: { user } } = await supabase.auth.getUser()
@@ -121,7 +144,6 @@ export function Dashboard({
     getUserId()
   }, [])
 
-  // Load user's schedule for selected bar
   useEffect(() => {
     if (!userId) return
 
@@ -144,20 +166,19 @@ export function Dashboard({
 
       if (!error && data) {
         const shifts: UserScheduleShift[] = data.map((item: ScheduleItem) => ({
-            id: item.id,
-            date: item.date,
-            start_time: item.start_time,
-            end_time: item.end_time,
-            role: item.role
+          id: item.id,
+          date: item.date,
+          start_time: item.start_time,
+          end_time: item.end_time,
+          role: item.role
         }))
         setUserSchedule(shifts)
-        }
+      }
     }
 
     loadSchedule()
   }, [userId, selectedBar])
 
-  // Group shifts by date
   const groupedSchedule = new Map<string, UserScheduleShift[]>()
   userSchedule.forEach(shift => {
     const existing = groupedSchedule.get(shift.date) || []
@@ -165,9 +186,12 @@ export function Dashboard({
     groupedSchedule.set(shift.date, existing)
   })
 
+  const customerAlerts = activeAlerts.filter(alert => alert.type === 'customer_86')
+  const menuAlerts = activeAlerts.filter(alert => alert.type === '86')
+  const otherAlerts = activeAlerts.filter(alert => alert.type !== 'customer_86' && alert.type !== '86')
+
   return (
     <div>
-      {/* Bar selector */}
       <div className="relative mb-8">
         <button
           onClick={() => setShowBarDropdown(!showBarDropdown)}
@@ -198,31 +222,79 @@ export function Dashboard({
         )}
       </div>
 
-      {/* Alerts Section */}
-      <div className="mb-8">
-        <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
-          <i className="ri-alert-line text-red-500"></i>
-          Alerts & Announcements
-        </h3>
-        <div className="space-y-3">
-          {alerts.map((alert) => (
-            <div key={alert.id} className={`rounded-lg p-4 border ${getAlertColor(alert.type)}`}>
-              <div className="flex items-start gap-3">
-                <i className={`${getAlertIcon(alert.type)} text-xl mt-0.5`}></i>
-                <div className="flex-1">
-                  <div className="flex justify-between items-start flex-wrap gap-2">
-                    <h4 className="font-semibold">{alert.title}</h4>
-                    <span className={`text-xs ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>{alert.date}</span>
+      {activeAlerts.length > 0 && (
+        <div className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {customerAlerts.length > 0 && (
+              <div className={`rounded-xl border-l-4 border-l-purple-500 p-4 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+                <div className="flex items-start gap-3">
+                  <i className="ri-user-forbid-line text-xl text-purple-500"></i>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-purple-500">86'd Customers</h3>
+                    <div className="mt-2 space-y-1">
+                      {customerAlerts.map((alert) => (
+                        <div key={alert.id} className="text-sm">
+                          <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                            {alert.title.replace('86 Customer: ', '')}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-sm mt-1 opacity-90">{alert.message}</p>
                 </div>
               </div>
-            </div>
-          ))}
-        </div>
-      </div>
+            )}
 
-      {/* Clickable Stats Cards */}
+            {menuAlerts.length > 0 && (
+              <div className={`rounded-xl border-l-4 border-l-red-500 p-4 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+                <div className="flex items-start gap-3">
+                  <i className="ri-restaurant-line text-xl text-red-500"></i>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-red-500">86'd Items</h3>
+                    <div className="mt-2 space-y-1">
+                      {menuAlerts.map((alert) => (
+                        <div key={alert.id} className="flex justify-between items-center text-sm">
+                          <span className={isDark ? 'text-gray-300' : 'text-gray-700'}>
+                            {alert.title}
+                          </span>
+                          {alert.end_time && (
+                            <span className="text-xs text-yellow-500">
+                              {formatRemainingTime(alert.end_time)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {otherAlerts.map((alert) => (
+              <div
+                key={alert.id}
+                className={`rounded-xl p-4 border-l-4 ${alert.type === 'staff_meeting' ? 'border-l-blue-500' : alert.type === 'incident' ? 'border-l-red-600' : 'border-l-yellow-500'} ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}
+              >
+                <div className="flex items-start gap-3">
+                  <i className={`${getAlertIcon(alert.type)} text-xl ${getAlertTextColor(alert.type)}`}></i>
+                  <div className="flex-1">
+                    <h4 className="font-semibold text-sm">{alert.title}</h4>
+                    {alert.type === 'staff_meeting' && alert.end_time && (
+                      <p className="text-xs text-blue-400 mt-0.5">
+                        {formatDateTime(alert.end_time)}
+                      </p>
+                    )}
+                    <p className={`text-xs mt-1 ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
+                      {alert.message.length > 80 ? alert.message.slice(0, 80) + '...' : alert.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <div 
           onClick={onNavigateToMessages}
@@ -249,7 +321,6 @@ export function Dashboard({
         </div>
       </div>
 
-      {/* Your Schedule Section (real data from schedule table) */}
       <div>
         <h3 className="text-lg font-semibold mb-3">Your Schedule</h3>
         {userSchedule.length === 0 ? (
