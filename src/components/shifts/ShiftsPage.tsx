@@ -186,7 +186,7 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
       
       <div className="mt-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {openShifts.length === 0 ? (
-          <div className={`col-span-full rounded-xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+          <div className={`col-span-full rounded-xl p-4 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               No open shifts at the moment.
             </p>
@@ -194,7 +194,7 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
         ) : (
           openShifts.map((shift) => {
             const coworkers = getCoworkersForShift(shift.date, shift.start_time, shift.end_time)
-            return (
+            return ( // Individual shift card
               <div key={shift.id} className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} flex flex-col`}>
                 <div className="flex-1">
                   <div className="flex justify-between items-start">
@@ -221,7 +221,7 @@ export function ShiftsPage({ shifts, isDark, onClaimShift, onOpenPostModal }: Sh
                   
                   <p className="text-xs text-green-500 mt-2">Open</p>
                 </div>
-                
+                {/* Coworkers section */}
                 {coworkers.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-700">
                     <p className="text-xs text-gray-400 mb-2">Working with:</p>

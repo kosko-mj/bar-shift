@@ -8,6 +8,7 @@ import { SchedulePage } from './components/schedule/SchedulePage'
 import { AuthModal } from './components/modals/AuthModal'
 import { PostShiftModal } from './components/modals/PostShiftModal'
 import { AlertsPage } from './components/alerts/AlertsPage'
+import { MessagesPage } from './components/messages/MessagesPage'
 
 interface DbAlert {
   id: number
@@ -46,6 +47,8 @@ function App() {
   const [userBars, setUserBars] = useState(['Bonus Room'])
   const [isSaving, setIsSaving] = useState(false)
   const [activeAlerts, setActiveAlerts] = useState<DbAlert[]>([])
+  const [unreadCount, setUnreadCount] = useState(0)
+  const [lastReadAt, setLastReadAt] = useState<string>(new Date().toISOString())
 
   const loadProfile = async (uid: string) => {
     const { data, error } = await supabase
@@ -60,6 +63,7 @@ function App() {
       setUserName(data.name || '')
       setUserPosition(data.position || '')
       setUserBars(data.bars || ['Bonus Room'])
+      if (data.last_read_at) setLastReadAt(data.last_read_at)
     }
   }
 
@@ -106,6 +110,38 @@ function App() {
       setShifts(data || [])
     }
   }
+
+  const loadMessageCount = useCallback(async () => {
+    if (!userId || !userBars.length) return
+    
+    const { count, error } = await supabase
+      .from('messages')
+      .select('*', { count: 'exact', head: true })
+      .in('bar_id', userBars)
+      .gt('created_at', lastReadAt)
+      .neq('user_id', userId) // Don't count your own messages as "unread"
+    
+    if (error) console.error('Error loading message count:', error)
+    else setUnreadCount(count || 0)
+  }, [userId, userBars, lastReadAt])
+
+  // Logic: When the user enters the messages page, mark everything as "read"
+  useEffect(() => {
+    if (activePage === 'messages' && userId) {
+      const now = new Date().toISOString()
+      setLastReadAt(now)
+      setUnreadCount(0) // Visual shortcut: clear the count immediately
+      
+      // Update database
+      supabase
+        .from('profiles')
+        .update({ last_read_at: now })
+        .eq('id', userId)
+        .then(({ error }) => {
+          if (error) console.error('Error updating last_read_at:', error)
+        })
+    }
+  }, [activePage, userId])
 
   const loadGlobalAlerts = useCallback(async () => {
     console.log('App: Loading global alerts for bar:', selectedBar)
@@ -178,12 +214,13 @@ function App() {
       await loadProfile(session.user.id)
       await loadShifts()
       await loadGlobalAlerts()
+      await loadMessageCount()
     } else {
       setShowAuthModal(true)
     }
   }
   checkUser()
-}, [loadGlobalAlerts])
+}, [loadGlobalAlerts, loadMessageCount])
 
   // Real-time subscription for shifts AND schedule AND alerts
   useEffect(() => {
@@ -210,12 +247,19 @@ function App() {
           loadGlobalAlerts()
         }
       )
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'messages' },
+        () => {
+          console.log('Messages changed, reloading count...')
+          loadMessageCount()
+        }
+      )
       .subscribe()
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadGlobalAlerts])
+  }, [loadGlobalAlerts, loadMessageCount])
 
   // Polling fallback for alerts (every 10 seconds)
   useEffect(() => {
@@ -319,7 +363,7 @@ function App() {
   }
 
   return (
-    <div className={`flex min-h-screen ${isDark ? 'bg-gray-950 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
+    <div className={`flex min-h-screen ${isDark ? 'bg-gray-900 text-gray-100' : 'bg-gray-50 text-gray-900'}`}>
       <Sidebar 
         activePage={activePage}
         setActivePage={setActivePage}
@@ -353,6 +397,7 @@ function App() {
             isDark={isDark}
             openShiftsCount={shifts.filter(s => s.status === 'open').length}
             activeAlerts={activeAlerts}
+            unreadCount={unreadCount}
             onNavigateToMessages={() => setActivePage('messages')}
             onNavigateToShifts={() => setActivePage('shifts')}
           />
@@ -376,10 +421,13 @@ function App() {
         )}
 
         {activePage === 'messages' && (
-          <div>
-            <h2 className="text-2xl font-bold mb-4">Messages</h2>
-            <p className={isDark ? 'text-gray-400' : 'text-gray-500'}>Team messaging coming soon.</p>
-          </div>
+          <MessagesPage 
+            isDark={isDark} 
+            barName={selectedBar}
+            userBars={userBars}
+            userId={userId} 
+            userName={userName || getDisplayName()}
+          />
         )}
 
         {activePage === 'profile' && (

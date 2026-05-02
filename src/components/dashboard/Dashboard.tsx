@@ -10,6 +10,7 @@ interface DashboardProps {
   isDark: boolean
   openShiftsCount: number
   activeAlerts: DbAlert[]
+  unreadCount: number
   onNavigateToMessages: () => void
   onNavigateToShifts: () => void
 }
@@ -20,6 +21,7 @@ interface UserScheduleShift {
   start_time: string
   end_time: string
   role: string
+  bar_id: string
 }
 
 interface DbAlert {
@@ -111,12 +113,11 @@ const getAlertIcon = (alertType: string): string => {
   }
 }
 
-const getAlertTextColor = (alertType: string): string => {
-  if (alertType === '86') return 'text-red-500'
-  if (alertType === 'staff_meeting') return 'text-blue-500'
-  if (alertType === 'customer_86') return 'text-purple-500'
-  if (alertType === 'incident') return 'text-red-600'
-  return 'text-yellow-500'
+const severityColors: Record<string, string> = {
+  critical: 'border-l-red-600',
+  high: 'border-l-orange-500',
+  normal: 'border-l-yellow-500',
+  low: 'border-l-blue-500'
 }
 
 export function Dashboard({
@@ -128,6 +129,7 @@ export function Dashboard({
   isDark,
   openShiftsCount,
   activeAlerts,
+  unreadCount,
   onNavigateToMessages,
   onNavigateToShifts
 }: DashboardProps) {
@@ -159,7 +161,6 @@ export function Dashboard({
         .from('schedule')
         .select('*')
         .eq('user_id', userId)
-        .eq('bar_id', selectedBar)
         .gte('date', todayStr)
         .lte('date', endStr)
         .order('date', { ascending: true })
@@ -170,7 +171,8 @@ export function Dashboard({
           date: item.date,
           start_time: item.start_time,
           end_time: item.end_time,
-          role: item.role
+          role: item.role,
+          bar_id: item.bar_id // Add bar_id so we know where the shift is
         }))
         setUserSchedule(shifts)
       }
@@ -225,12 +227,14 @@ export function Dashboard({
       {activeAlerts.length > 0 && (
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {customerAlerts.length > 0 && (
-              <div className={`rounded-xl border-l-4 border-l-purple-500 p-4 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+            {customerAlerts.length > 0 && ( // Customer 86'd alerts
+              <div className={`rounded-xl border-l-4 ${
+                severityColors[customerAlerts[0].severity] || severityColors.normal
+              } p-4 ${isDark ? 'bg-gray-800 border-y border-r border-gray-700' : 'bg-white border-y border-r border-gray-200 shadow-sm'}`}>
                 <div className="flex items-start gap-3">
-                  <i className="ri-user-forbid-line text-xl text-purple-500"></i>
+                  <i className="ri-user-forbid-line text-xl text-gray-400"></i>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-purple-500">86'd Customers</h3>
+                    <h3 className="font-semibold text-sm mb-1 uppercase tracking-tight opacity-80 text-gray-400">86'd Customers</h3>
                     <div className="mt-2 space-y-1">
                       {customerAlerts.map((alert) => (
                         <div key={alert.id} className="text-sm">
@@ -245,12 +249,14 @@ export function Dashboard({
               </div>
             )}
 
-            {menuAlerts.length > 0 && (
-              <div className={`rounded-xl border-l-4 border-l-red-500 p-4 ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}>
+            {menuAlerts.length > 0 && ( // 86'd Items alerts
+              <div className={`rounded-xl border-l-4 ${
+                severityColors[menuAlerts[0].severity] || severityColors.normal
+              } p-4 ${isDark ? 'bg-gray-800 border-y border-r border-gray-700' : 'bg-white border-y border-r border-gray-200 shadow-sm'}`}>
                 <div className="flex items-start gap-3">
-                  <i className="ri-restaurant-line text-xl text-red-500"></i>
+                  <i className="ri-restaurant-line text-xl text-gray-400"></i>
                   <div className="flex-1">
-                    <h3 className="font-semibold text-red-500">86'd Items</h3>
+                    <h3 className="font-semibold text-sm mb-1 uppercase tracking-tight opacity-80 text-gray-400">86'd Items</h3>
                     <div className="mt-2 space-y-1">
                       {menuAlerts.map((alert) => (
                         <div key={alert.id} className="flex justify-between items-center text-sm">
@@ -270,17 +276,19 @@ export function Dashboard({
               </div>
             )}
 
-            {otherAlerts.map((alert) => (
+            {otherAlerts.map((alert) => ( // Other alerts
               <div
                 key={alert.id}
-                className={`rounded-xl p-4 border-l-4 ${alert.type === 'staff_meeting' ? 'border-l-blue-500' : alert.type === 'incident' ? 'border-l-red-600' : 'border-l-yellow-500'} ${isDark ? 'bg-gray-900 border border-gray-800' : 'bg-white border border-gray-200'}`}
+                className={`rounded-xl p-4 border-l-4 ${
+                  severityColors[alert.severity] || severityColors.normal
+                } ${isDark ? 'bg-gray-800 border-y border-r border-gray-700' : 'bg-white border-y border-r border-gray-200 shadow-sm'}`}
               >
                 <div className="flex items-start gap-3">
-                  <i className={`${getAlertIcon(alert.type)} text-xl ${getAlertTextColor(alert.type)}`}></i>
+                  <i className={`${getAlertIcon(alert.type)} text-xl text-gray-400`}></i>
                   <div className="flex-1">
-                    <h4 className="font-semibold text-sm">{alert.title}</h4>
+                    <h3 className="font-semibold text-sm">{alert.title}</h3>
                     {alert.type === 'staff_meeting' && alert.end_time && (
-                      <p className="text-xs text-blue-400 mt-0.5">
+                      <p className="text-xs text-gray-500 mt-0.5">
                         {formatDateTime(alert.end_time)}
                       </p>
                     )}
@@ -298,19 +306,19 @@ export function Dashboard({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
         <div 
           onClick={onNavigateToMessages}
-          className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg`}
+          className={`rounded-xl p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg`}
         >
           <div className="flex items-center gap-2 mb-2">
             <i className="ri-mail-line text-xl text-blue-500"></i>
             <h3 className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>Messages</h3>
           </div>
-          <p className="text-3xl font-bold">0</p>
+          <p className="text-3xl font-bold">{unreadCount}</p>
           <p className="text-xs text-gray-400 mt-2">Unread messages</p>
         </div>
         
         <div 
           onClick={onNavigateToShifts}
-          className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg`}
+          className={`rounded-xl p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} cursor-pointer transition-all hover:scale-[1.02] hover:shadow-lg`}
         >
           <div className="flex items-center gap-2 mb-2">
             <i className="ri-exchange-line text-xl text-green-500"></i>
@@ -324,7 +332,7 @@ export function Dashboard({
       <div>
         <h3 className="text-lg font-semibold mb-3">Your Schedule</h3>
         {userSchedule.length === 0 ? (
-          <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'} text-center`}>
+          <div className={`rounded-xl p-6 border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'} text-center`}>
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               No upcoming shifts at {selectedBar}
             </p>
@@ -332,7 +340,7 @@ export function Dashboard({
         ) : (
           <div className={`rounded-xl p-4 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
             <div className="space-y-4">
-              {Array.from(groupedSchedule.entries()).map(([date, shifts]) => (
+            {Array.from(groupedSchedule.entries()).map(([date, shifts]) => ( // Schedule list
                 <div key={date}>
                   <p className="text-sm font-medium text-gray-400 mb-2">{formatDateShort(date)}</p>
                   <div className="space-y-2">
@@ -340,7 +348,10 @@ export function Dashboard({
                       <div key={shift.id} className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                           <i className={`${getRoleIcon(shift.role)} text-sm w-5`}></i>
-                          <p className="text-sm text-gray-400">
+                          <p className="text-sm">
+                            <span className="font-medium mr-2">{shift.bar_id}</span>
+                          </p>
+                          <p className="text-xs text-gray-500">
                             {formatTimeShort(shift.start_time)} - {formatTimeShort(shift.end_time)}
                           </p>
                         </div>

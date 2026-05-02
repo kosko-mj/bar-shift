@@ -56,17 +56,17 @@ const typeLabels: Record<string, string> = {
 }
 
 const severityColors: Record<string, string> = {
-  critical: 'text-red-500 border-red-500/30 bg-red-500/5',
-  high: 'text-orange-500 border-orange-500/30 bg-orange-500/5',
-  normal: 'text-yellow-500 border-yellow-500/30 bg-yellow-500/5',
-  low: 'text-blue-500 border-blue-500/30 bg-blue-500/5'
+  critical: 'border-l-red-600',
+  high: 'border-l-orange-500',
+  normal: 'border-l-yellow-500',
+  low: 'border-l-blue-500'
 }
 
 const statusColors: Record<string, string> = {
-  open: 'text-green-500',
-  acknowledged: 'text-yellow-500',
-  resolved: 'text-gray-500',
-  expired: 'text-gray-500'
+  open: 'text-gray-400',
+  acknowledged: 'text-gray-400',
+  resolved: 'text-gray-600',
+  expired: 'text-gray-600'
 }
 
 const typeIcons: Record<string, string> = {
@@ -306,7 +306,7 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
         .insert([{ alert_id: alertId, user_id: userId }])
       
       const alert = alerts.find(a => a.id === alertId)
-      if (alert && alert.type === 'incident' && alert.acknowledgement_count && alert.acknowledgement_count + 1 >= totalStaffCount) {
+      if (alert && alert.type === 'incident' && (alert.acknowledgement_count || 0) + 1 >= totalStaffCount) {
         await supabase
           .from('alerts')
           .update({ status: 'resolved' })
@@ -401,18 +401,8 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
     setShowDetailModal(true)
   }
 
-  const getTypeBadge = (type: string) => {
-    const colors: Record<string, string> = {
-      '86': 'bg-red-500/20 text-red-400',
-      'staff_meeting': 'bg-blue-500/20 text-blue-400',
-      'doh': 'bg-orange-500/20 text-orange-400',
-      'incident': 'bg-red-600/20 text-red-500',
-      'customer_86': 'bg-purple-500/20 text-purple-400',
-      'maintenance': 'bg-yellow-500/20 text-yellow-400',
-      'staff_notice': 'bg-green-500/20 text-green-400',
-      'shift_handoff': 'bg-cyan-500/20 text-cyan-400'
-    }
-    return colors[type] || 'bg-gray-500/20 text-gray-400'
+  const getTypeBadge = () => {
+    return 'bg-gray-500/10 text-gray-400 border border-gray-500/20'
   }
 
   const getFormFields = () => {
@@ -561,7 +551,7 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
       {/* Alerts List */}
       <div className="space-y-3">
         {filteredAlerts.length === 0 ? (
-          <div className={`rounded-xl p-8 text-center border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
+          <div className={`rounded-xl p-8 text-center border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
             <i className="ri-notification-line text-4xl text-gray-500 mb-2 block"></i>
             <p className={`text-sm ${isDark ? 'text-gray-400' : 'text-gray-500'}`}>
               No alerts found
@@ -572,15 +562,17 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
             <div
               key={alert.id}
               onClick={() => viewAlertDetail(alert)}
-              className={`rounded-xl p-4 border cursor-pointer transition-all hover:scale-[1.01] ${severityColors[alert.severity]} ${isDark ? 'bg-gray-900' : 'bg-white'}`}
+              className={`rounded-xl p-4 border-l-4 cursor-pointer transition-all hover:translate-x-1 ${
+                severityColors[alert.severity] || severityColors.normal
+              } ${isDark ? 'bg-gray-800 border-y border-r border-gray-700' : 'bg-white border-y border-r border-gray-200'}`}
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-start gap-3 flex-1">
-                  <i className={`${typeIcons[alert.type]} text-xl mt-0.5`}></i>
+                  <i className={`${typeIcons[alert.type]} text-xl mt-0.5 text-gray-400`}></i>
                   <div className="flex-1">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
                       <h3 className="font-semibold">{alert.title}</h3>
-                      <span className={`text-xs px-2 py-0.5 rounded-full ${getTypeBadge(alert.type)}`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${getTypeBadge()}`}>
                         {typeLabels[alert.type]}
                       </span>
                       <span className={`text-xs font-medium ${statusColors[alert.status]}`}>
@@ -637,7 +629,7 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className={`rounded-xl shadow-xl w-full max-w-md p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-            <h3 className="text-xl font-bold mb-4">Create Alert</h3>
+            <h3 className="text-xl font-bold mb-4">Create New Alert</h3>
             
             <div className="space-y-4">
               <div>
@@ -731,11 +723,11 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
       {showDetailModal && selectedAlert && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
           <div className={`rounded-xl shadow-xl w-full max-w-2xl max-h-[80vh] overflow-y-auto p-6 border ${isDark ? 'bg-gray-900 border-gray-800' : 'bg-white border-gray-200'}`}>
-            <div className="flex justify-between items-start mb-4">
+            <div className="flex justify-between items-start mb-4"> {/* Alert Detail Modal Header */}
               <div className="flex items-center gap-2">
                 <i className={`${typeIcons[selectedAlert.type]} text-2xl`}></i>
                 <h3 className="text-xl font-bold">{selectedAlert.title}</h3>
-                <span className={`text-xs px-2 py-0.5 rounded-full ${getTypeBadge(selectedAlert.type)}`}>
+                <span className={`text-xs px-2 py-0.5 rounded-full ${getTypeBadge()}`}>
                   {typeLabels[selectedAlert.type]}
                 </span>
               </div>
@@ -766,7 +758,7 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
             </div>
 
             <div className="space-y-4">
-              <div className={`p-3 rounded-lg ${severityColors[selectedAlert.severity]}`}>
+              <div className={`p-3 rounded-lg border ${severityColors[selectedAlert.severity]}`}> {/* Alert Message */}
                 <p className="text-sm">{selectedAlert.message}</p>
               </div>
 
@@ -798,7 +790,7 @@ export function AlertsPage({ isDark, barName, userId, isManager = true }: Alerts
               </div>
 
               {selectedAlert.manager_notes && isManager && (
-                <div className={`p-3 rounded-lg ${isDark ? 'bg-gray-800' : 'bg-gray-100'}`}>
+                <div className={`p-3 rounded-lg border ${isDark ? 'bg-gray-800 border-gray-700' : 'bg-gray-100 border-gray-200'}`}>
                   <p className="text-sm font-medium mb-1">Manager Notes</p>
                   <p className="text-sm">{selectedAlert.manager_notes}</p>
                 </div>
